@@ -1,80 +1,94 @@
-from dotenv import load_dotenv
 import os
 import logging
-import asyncio
 from telegram import Update
-from config import BOT_TOKEN
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-print("BOT TOKEN:", os.getenv("BOT_TOKEN"))
-print("IG COOKIE:", os.getenv("IG_COOKIE"))
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from yt_dlp import YoutubeDL
+import nest_asyncio
 
-import yt_dlp
+nest_asyncio.apply()
+logging.basicConfig(level=logging.INFO)
 
-load_dotenv(dotenv_path=".env")
-
-# Get token securely
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.environ.get("PORT", 8443))
+DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+INSTAGRAM_COOKIE = os.getenv("INSTAGRAM_COOKIE")
 
-print(f"[DEBUG] TOKEN: {BOT_TOKEN}")  # Temporary print for log checking
+# Write the cookie to a file
+with open("cookies.txt", "w") as f:
+    f.write(INSTAGRAM_COOKIE)
 
-# Enable Logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+ydl_opts = {
+    'cookiefile': 'cookies.txt',
+    'outtmpl': 'downloads/%(title)s.%(ext)s'
+}
 
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👀 Bot zinda hai, message mila!")
+
+app.add_handler(MessageHandler(filters.ALL, echo))
+
+# Save cookie to file
+with open("instagram.com_cookies.txt", "w") as f:
+    f.write(COOKIE)
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Send me an Instagram Reel link to download.")
 
-
-# Error handler
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error("Exception while handling an update:", exc_info=context.error)
-
-
-# Reel downloader logic
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    print(f"[RECEIVED] Text: {text}")
 
-    if "instagram.com/reel" in text:
-        await update.message.reply_text("⬇️ Downloading the Reel...")
+async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        text = update.message.text
+        print("[BOT] Message received:", text)
 
-        try:
-            ydl_opts = {
-                'outtmpl': 'reel.%(ext)s',
-                'format': 'mp4',
-            }
+        if "instagram.com/reel/" not in text:
+            await update.message.reply_text("❌ Bhai sahi reel link bhejo.")
+            return
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(text, download=True)
-                file_path = ydl.prepare_filename(info)
+# Reel downloader
+async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    if "instagram.com/reel" not in url:
+        await update.message.reply_text("❌ Invalid Instagram Reel URL.")
+        return
 
-            await update.message.reply_video(video=open(file_path, 'rb'))
+    await update.message.reply_text("⏬ Downloading reel...")
 
-            # Clean up
-            os.remove(file_path)
+    ydl_opts = {
+        'outtmpl': 'reel.%(ext)s',
+        'quiet': True,
+        'cookiesfromfile': 'instagram.com_cookies.txt',
+    }
 
-        except Exception as e:
-            logger.error(f"Download error: {e}")
-            await update.message.reply_text("⚠️ Failed to download. Link may be private or invalid.")
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
 
-    else:
-        await update.message.reply_text("❌ Please send a valid Instagram Reel link.")
+        with open(filename, 'rb') as f:
+            await update.message.reply_video(video=f)
 
+        os.remove(filename)
 
-# Main function
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Failed to download:\n{str(e)}")
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_error_handler(error_handler)
+# Bot setup
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT, download_reel))
 
+app.add_handler(MessageHandler(filters.ALL, echo))
+
+# Webhook
+if DOMAIN:
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"https://{DOMAIN}/webhook"
+    )
+else:
     app.run_polling()
-
-
-if __name__ == "__main__":
-    main()

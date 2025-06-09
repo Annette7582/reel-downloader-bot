@@ -1,8 +1,13 @@
-# Python
+# Python cache
 __pycache__/
 *.py[cod]
 
-# Env and secret files
+# Virtual environment
+venv/
+
+# Environment files
 .env
-cookies.json
-session.json
+
+# OS files
+.DS_Store
+Thumbs.db
