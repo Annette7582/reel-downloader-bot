@@ -5,6 +5,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from yt_dlp import YoutubeDL
 import nest_asyncio
 
+# trigger redeploy
+
 nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 
